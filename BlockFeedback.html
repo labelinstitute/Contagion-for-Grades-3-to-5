@@ -1,0 +1,38 @@
+{{ extends 'otree/Page.html' }}
+{{ load static }}
+
+{{ block title }}
+    End of Game {{ block_num }}
+{{ endblock }}
+
+{{ block content }}
+
+
+
+<br>
+
+<div style="max-width:560px; margin:0 auto; font-size:18px; border:2px solid #000; background:#eeeeee; padding:16px; border-radius:12px;">
+
+    {# ✅ NEW: status line (alive vs dead message) #}
+    <p style="font-size:20px; font-weight:bold; text-align:center;">
+        {{ status_line }}
+    </p>
+
+    <hr>
+
+
+    <p style="font-size:19px;"><b>Points earned in this game:</b> {{ show_points }}</p>
+
+    <hr>
+
+
+
+</div>
+
+<br>
+
+<div style="text-align:center;">
+    {{ next_button }}
+</div>
+
+{{ endblock }}

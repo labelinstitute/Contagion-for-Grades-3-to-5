@@ -1,0 +1,21 @@
+{{ extends 'otree/Page.html' }}
+{{ load static }}
+
+{{ block title }}
+    End of the Game
+{{ endblock }}
+
+{{ block content }}
+
+<p style="text-align:center; font-size:24px; font-weight:bold;">
+    Thank you for participating!
+</p>
+
+<br>
+
+<div style="max-width:400px; margin:0 auto; font-size:18px;">
+    <p><b>Total points earned:</b> {{ total }}</p>
+
+</div>
+
+{{ endblock }}

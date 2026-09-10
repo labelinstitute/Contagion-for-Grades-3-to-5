@@ -1,0 +1,812 @@
+{% extends "global/Page.html" %}
+{% load otree static %}
+
+{{ block title }}
+    Day {{ day_in_block }}
+    <br>
+    Game {{ block_number }}
+{{ endblock }}
+
+
+
+{% block content %}
+
+<!-- ==================== NEW Variables ==================== -->
+<input type="hidden" name="rt_first_click_ms" id="id_rt_first_click_ms" value="0">
+<input type="hidden" name="used_popup" id="id_used_popup" value="False">
+<input type="hidden" name="click_count" id="id_click_count" value="0">
+
+<!-- rest of page -->
+
+
+<!-- ==================== HEADER SECTION ==================== -->
+<div class="custom-otree-timer alert alert-warning" style="border-radius:14px;">
+  <p>
+    <span style="font-weight: bold">
+      <span class="custom-time-left"></span>
+    </span>
+  </p>
+</div>
+
+<div id="progress-bar-container">
+  <div id="progress-bar"></div>
+</div>
+
+{# ✅ IMPORTANT: DO NOT create your own <form> when extending global/Page.html #}
+{# ✅ oTree already provides the form + csrf. Just render the real field: #}
+<div style="display:none;">
+  {% if me_alive %}
+    {{ form.action }}
+  {% else %}
+    <input type="hidden" name="action" id="id_action" value="nochoice">
+  {% endif %}
+</div>
+
+<div id="main_grid">
+
+  <!-- LEFT COLUMN (network) -->
+  <div id="left_col">
+    <div id="network_box">
+      <svg id="netSvg"
+           viewBox="0 0 {{ canvas_w }} {{ canvas_h }}"
+           preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN (top right is empty like your template) -->
+  <div id="right_col"></div>
+
+  <!-- MID ROW (left column only) -->
+  <div id="mid_row">
+
+    <!-- Row 1: Germ change cards -->
+    <div id="midrow_row1">
+
+    <!-- Germ change probability (OUT) -->
+      <div class="mini_panel germ_card">
+        <div class="germ_line">
+          <span class="germ_label">Germ change:</span>
+
+          {% if me_alive %}
+            <div class="pie-wrap">
+
+              <div class="pie pie-has-label" style="--p: {{ p_display }};">
+
+                {# ✅ show 0 only if NOT 100% #}
+                {% if p_display < 100 %}
+                  <span class="pie-label pie-left">0</span>
+                {% endif %}
+
+                {# ✅ show +1 only if NOT 0% #}
+                {% if p_display > 0 %}
+                  <span class="pie-label pie-right">+1</span>
+                {% endif %}
+
+              </div>
+
+              {# ✅ percent text: top-left, slightly smaller #}
+              <div class="pie-text">{{ p_display }}%</div>
+
+            </div>
+          {% else %}
+            <span class="germ_value">—</span>
+          {% endif %}
+        </div>
+      </div>
+
+
+      <!-- Germ change -1 (IN) -->
+   <!--   <div class="mini_panel germ_card">
+        <div class="germ_line">
+          <span class="germ_label">Germ change:</span>
+          <span class="germ_value">-1</span>
+        </div>
+      </div>  -->
+
+      <!-- Germ change panel -->
+        <div class="mini_panel germ_card">
+          <div class="germ_line">
+            <span class="germ_label">Germ change:</span>
+            <span class="germ_value">
+              {% if germ == 0 %}
+                0
+              {% else %}
+                -1
+              {% endif %}
+            </span>
+          </div>
+        </div>
+
+    </div>
+
+    <!-- Row 2: Decision buttons -->
+    <div id="button_panel" class="{% if not me_alive %}disabled{% endif %}">
+      <div id="button_holder">
+        <button type="button" id="btn-out" class="choice_btn">
+          <img src="{% static 'party.png' %}" alt="OUT"><br>
+        </button>
+        <button type="button" id="btn-in" class="choice_btn">
+          <img src="{% static 'house.png' %}" alt="IN"><br>
+        </button>
+      </div>
+    </div>
+
+    <!-- Row 3: YOU status -->
+    <div id="you_status_exact" class="mini_panel">
+
+      <div class="you_left_exact">
+        {% if not me_alive %}
+          <img src="{% static 'cross.png' %}" class="you_face_exact">
+        {% else %}
+          {% if germ == 0 %}
+            <img src="{% static 'health_green.png' %}" class="you_face_exact">
+          {% else %}
+            {% if risk_type == "blue" %}
+              <img src="{% static 'health_blue.png' %}" class="you_face_exact">
+            {% else %}
+              <img src="{% static 'health_red.png' %}" class="you_face_exact">
+            {% endif %}
+          {% endif %}
+        {% endif %}
+
+        <div class="you_label_exact">YOU</div>
+      </div>
+
+      <div class="you_right_exact">
+        {% if not me_alive %}
+          <div class="you_line_exact"><span class="you_bold_exact">Status:</span> <span>DEAD</span></div>
+        {% else %}
+          <div class="you_line_exact">
+            <span class="you_bold_exact">Contagious:</span>
+            <span>{% if germ == 0 %}NO{% else %}YES{% endif %}</span>
+          </div>
+
+          <div class="you_line_exact">
+            <span class="you_bold_exact">Germ count:</span>
+            <span>{{ germ }}</span>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- BOTTOM RIGHT: risk indicator -->
+  <div id="risk_indicator">
+    {% if me_alive %}
+      {% if risk_type == "red" %}
+        <div class="legend_panel">
+          <img src="{% static 'risk.PNG' %}" class="legend_img" alt="Risk">
+        </div>
+      {% else %}
+        <div class="legend_panel">
+          <img src="{% static 'norisk.PNG' %}" class="legend_img" alt="No risk">
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ========= TIMEOUT BLOCKING MODAL ========= -->
+<div id="timeoutOverlay" class="timeout-overlay" style="display:none;">
+  <div class="timeout-modal">
+    <div class="timeout-title">Time is up</div>
+    <div class="timeout-text">Please choose to continue.</div>
+
+    <div class="timeout-actions">
+      <button type="button" id="timeout-out" class="timeout-btn-img">
+        <img src="{% static 'party.png' %}" alt="OUT">
+      </button>
+      <button type="button" id="timeout-in" class="timeout-btn-img">
+        <img src="{% static 'house.png' %}" alt="IN">
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+  /* Hide default oTree header */
+  .otree-title, .otree-timer { display: none; }
+  body { background: white; }
+
+  p { text-align: center; font-weight: bold; font-size: 25px; margin: 0; }
+
+  .custom-otree-timer{
+    background: white;
+    border: none !important;
+    box-shadow: none;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+  .custom-otree-timer p{
+    color: #2d3748;
+    font-size: 28px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+  }
+
+  /* progress */
+  #progress-bar-container{
+    width: 100%;
+    background: white;
+    height: 24px;
+    margin-bottom: 24px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: none;
+  }
+  #progress-bar{
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #f3c6c6 0%, #e8aeb7 100%);
+    transition: width 0.3s ease;
+  }
+
+  /* grid */
+  #main_grid{
+    display: grid;
+    grid-template-columns: 400px 200px;
+    grid-template-rows: auto auto auto;
+    gap: 50px;
+    justify-content: center;
+    align-items: start;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  #network_box{
+    background: white;
+    padding: 10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    height: 330px;
+    border: none;
+    border-radius: 0px;
+    box-shadow: none;
+  }
+
+  svg{
+    width: 100%;
+    height: 100%;
+    max-width: 420px;
+    max-height: 360px;
+    display: block;
+    border: none;
+    background: white;
+  }
+
+  /* mid row only left column */
+  #mid_row{
+    grid-column: 1;
+    justify-self: center;
+    width: 440px;
+    max-width: 100%;
+  }
+
+  /* risk indicator right column row2 */
+  #risk_indicator{
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    align-self: end;
+  }
+
+  .legend_panel{ background: white; padding: 0; border-radius: 0; box-shadow: none; border: none; }
+  .legend_img{ width: 100%; height: auto; display:block; border-radius: 0; box-shadow:none; }
+
+  /* germ cards */
+  #midrow_row1{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .mini_panel{
+    background: white;
+    padding: 12px;
+    border-radius: 14px;
+    border: none;
+    box-shadow: none;
+  }
+  .germ_card{
+    height: 120px;
+    display:flex;
+    align-items:center;
+  }
+  .germ_line{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 12px;
+  }
+  .germ_label{
+    min-width: 120px;
+    text-align:right;
+    font-weight: 700;
+    font-size: 16px;
+    color: #2d3748;
+  }
+  .germ_value{
+    font-weight: 900;
+    font-size: 24px;
+    color: #2d3748;
+  }
+
+  /* ✅ PIE CHART CONTAINER - centers the pie */
+  .pgain-center{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 22px 0;
+  }
+
+  /* pie */
+  .pie-wrap{
+    display:inline-flex;
+    align-items:center;
+    gap: 12px;
+    white-space: nowrap;
+  }
+
+  .pie{
+    width: 85px;
+    height: 85px;
+    border-radius:50%;
+    background: conic-gradient(
+      #e76fb3 calc(var(--p) * 1%),
+      #e6e6e6 0
+    );
+    box-shadow: 0 0 0 2px #333 inset;
+    flex: 0 0 auto;
+    position: relative;
+  }
+
+   .pie-text{
+    font-size: 18px;     /* slightly smaller than 22 */
+    font-weight: 900;
+    color: #222;
+    min-width: 60px;
+    text-align: left;
+    flex: 0 0 auto;
+
+    /* ✅ move it to top-left of the pie area */
+    align-self: flex-start;
+    margin-left: 6px;
+    margin-top: -10px;
+  }
+
+  /* ✅ Labels - always visible */
+  .pie-label{
+    position: absolute;
+    top: 10px;
+    font-size: 14px;
+    font-weight: 900;
+    color: #000;
+    pointer-events: none;
+    text-shadow: none;
+    opacity: 1;
+  }
+
+   /* push labels further inside the pie */
+    .pie-left{
+      left: 23px;   /* was 18px */
+      top: 23px;    /* move downward a bit */
+    }
+
+    .pie-right{
+      right: 23px;  /* was 18px */
+      top: 23px;
+    }
+
+  /* buttons */
+  #button_panel{ background: transparent; border: none; box-shadow:none; padding:0; margin:0; }
+  #button_holder{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    align-items: stretch;
+  }
+  .choice_btn{
+    padding: 60px;
+    width: 100%;
+    height: 150px;
+    background: white;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    cursor:pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .choice_btn:hover{ background: #fafafa; }
+  .choice_btn:active{ transform: scale(0.985); }
+  .choice_btn.selected{ background: #f3e7ea; }
+  .choice_btn img{ height: 150px; width:auto; }
+
+  .disabled{
+    opacity: 0.45;
+    pointer-events: none;
+    filter: grayscale(100%);
+  }
+
+  /* YOU status */
+  #you_status_exact{
+    display:grid;
+    grid-template-columns: 120px 1fr;
+    align-items:center;
+    column-gap: 28px;
+    background: white;
+    padding: 16px 18px;
+    border-radius: 18px;
+    box-shadow:none;
+    border:none;
+    margin-top: 10px;
+  }
+  .you_left_exact{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap: 6px;
+  }
+  .you_face_exact{ width: 75px; height: 75px; display:block; border-radius: 18px; }
+  .you_label_exact{ font-weight: 900; font-size: 14px; letter-spacing: 0.4px; color: #111; }
+  .you_right_exact{ display:flex; flex-direction:column; gap: 10px; }
+  .you_line_exact{ font-size: 20px; line-height: 1.25; color: #111; }
+  .you_bold_exact{ font-weight: 900; margin-right: 8px; }
+
+  /* ===== Timeout blocking overlay ===== */
+  .timeout-overlay{
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+  }
+  .timeout-modal{
+    width: min(420px, calc(100vw - 40px));
+    background: #fff;
+    border-radius: 16px;
+    padding: 18px 18px 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    text-align: center;
+  }
+  .timeout-title{
+    font-weight: 900;
+    font-size: 22px;
+    margin-bottom: 8px;
+    color: #111;
+  }
+  .timeout-text{
+    font-size: 16px;
+    margin-bottom: 14px;
+    color: #333;
+  }
+  .timeout-actions{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    justify-items: center;
+    align-items: center;
+  }
+  .timeout-btn-img{
+    border: none;
+    background: #f3e7ea;
+    padding: 14px 10px;
+    border-radius: 14px;
+    cursor: pointer;
+    width: 100%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  }
+  .timeout-btn-img:hover{ background: #eedbe0; }
+  .timeout-btn-img img{ height: 70px; width:auto; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'global/d3.v7.min.js' %}"></script>
+
+<script>
+  // ===================== NETWORK (YOU CENTER + NEIGHBORS AROUND) =====================
+  const svg = d3.select("#netSvg");
+  const DEAD_ICON = "{% static 'cross.png' %}";
+
+  const states = {{ states|json }};
+  const YOU_ID = "{{ player.id_in_group }}";
+
+  // ✅ IMPORTANT: your Python must provide my_neighbors in vars_for_template:
+  // my_neighbors=json.loads(player.neighbors_json or "[]")
+  const neighborsRaw = {{ my_neighbors|json }};  // list of neighbor ids as strings
+
+  const vb = svg.attr("viewBox").split(" ").map(Number);
+  const W = vb[2], H = vb[3];
+  const CX = W / 2, CY = H / 2;
+
+  const neighborIDs = (neighborsRaw || []).map(x => String(x));
+  const egoIDs = [String(YOU_ID), ...neighborIDs];
+
+  // Place YOU at center; neighbors on a circle
+  const R = Math.min(W, H) * 0.28;   // adjust ring radius if needed
+  const positions = {};
+  positions[String(YOU_ID)] = { x: CX, y: CY };
+
+  neighborIDs.forEach((nid, i) => {
+    const ang = (-Math.PI / 2) + (2 * Math.PI * i / Math.max(1, neighborIDs.length));
+    positions[nid] = {
+      x: CX + R * Math.cos(ang),
+      y: CY + R * Math.sin(ang),
+    };
+  });
+
+  // Star edges: YOU <-> each neighbor
+  const edges = neighborIDs.map(nid => ({ a: String(YOU_ID), b: String(nid) }));
+
+  function healthFill(health){
+    if (health === "infected") return "#3498db";
+    if (health === "sick")     return "#e74c3c";
+    return "#2ecc71";
+  }
+
+  function isDead(st){
+    return (st.health === "dead") || (st.alive === false);
+  }
+
+  const nodes = egoIDs
+    .filter(id => states[id] !== undefined && positions[id] !== undefined)
+    .map(id => {
+      const st = states[id];
+      const pos = positions[id];
+      return {
+        id,
+        x: pos.x,
+        y: pos.y,
+        health: st.health,
+        risk: (st.risk_type || "").toLowerCase(),
+        dead: isDead(st),
+        isYou: (id === String(YOU_ID)),
+      };
+    });
+
+  // Links
+  svg.selectAll(".link")
+    .data(edges)
+    .enter()
+    .append("line")
+    .attr("class", "link")
+    .attr("x1", d => positions[String(d.a)].x)
+    .attr("y1", d => positions[String(d.a)].y)
+    .attr("x2", d => positions[String(d.b)].x)
+    .attr("y2", d => positions[String(d.b)].y)
+    .style("stroke", "#ccc")
+    .style("stroke-width", 2);
+
+  const youR = 40;
+  const nR = 28;
+
+  // Circles
+  svg.selectAll(".node-circle-draw")
+    .data(nodes)
+    .enter()
+    .append("circle")
+    .attr("class", d => d.dead ? "node-circle deadNeutral" : "node-circle")
+    .attr("r", d => d.isYou ? youR : nR)
+    .attr("cx", d => d.x)
+    .attr("cy", d => d.y)
+    .attr("fill", d => d.dead ? "#ffffff" : healthFill(d.health))
+    .style("stroke", d => d.dead ? "#999" : "#333")
+    .style("stroke-width", d => d.dead ? 2 : 3);
+
+  // Labels (YOU + ids)
+  svg.selectAll(".node-label-draw")
+    .data(nodes.filter(d => !d.dead))
+    .enter()
+    .append("text")
+    .attr("class", "node-label")
+    .attr("x", d => d.x)
+    .attr("y", d => d.y)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .style("font-size", d => d.isYou ? "14px" : "12px")
+    .style("font-weight", "bold")
+    .style("fill", "#fff")
+    .text(d => d.isYou ? "YOU" : "");
+
+
+  // Dead cross overlays
+  const CROSS_SIZE = 50;
+  const YOU_CROSS_SIZE = 70;
+
+  svg.selectAll(".dead-cross-img")
+    .data(nodes.filter(n => n.dead))
+    .enter()
+    .append("image")
+    .attr("class", "dead-cross-img")
+    .attr("href", DEAD_ICON)
+    .attr("width", d => d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)
+    .attr("height", d => d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)
+    .attr("x", d => d.x - (d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)/2)
+    .attr("y", d => d.y - (d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)/2);
+
+  // ===================== DECISION + TIMEOUT MODAL =====================
+  const alive = ({% if me_alive %}true{% else %}false{% endif %});
+  const timerDuration = {{ timer }};
+  let timeLeft = timerDuration;
+  let submitted = false;
+  let timeIsUp = false;
+
+  function getActionEl(){
+    return document.getElementById("id_action");
+  }
+
+  function setAction(val){
+    const el = getActionEl();
+    if (el) el.value = val;
+    markSelected(val);
+  }
+
+  function getChosenValue(){
+    const el = getActionEl();
+    if (!el) return null;
+    const v = (el.value || "").trim().toLowerCase();
+    return (v === "in" || v === "out") ? v : null;
+  }
+
+  function markSelected(val){
+    const bIn  = document.getElementById("btn-in");
+    const bOut = document.getElementById("btn-out");
+    if (!bIn || !bOut) return;
+
+    bIn.classList.remove("selected");
+    bOut.classList.remove("selected");
+
+    if (val === "in")  bIn.classList.add("selected");
+    if (val === "out") bOut.classList.add("selected");
+  }
+
+  function lockUIAfterTime0(){
+    const bIn  = document.getElementById("btn-in");
+    const bOut = document.getElementById("btn-out");
+    if (bIn)  bIn.disabled = true;
+    if (bOut) bOut.disabled = true;
+
+    const panel = document.getElementById("button_panel");
+    if (panel) panel.classList.add("disabled");
+  }
+
+  function submitDecision(){
+    if (submitted) return;
+    submitted = true;
+    lockUIAfterTime0();
+
+    const form = document.querySelector("form");
+    if (form) form.submit();
+  }
+
+  function hideTimeoutOverlay(){
+    const o = document.getElementById("timeoutOverlay");
+    if (o) o.style.display = "none";
+  }
+
+  function showTimeoutModal(){
+    const overlay = document.getElementById("timeoutOverlay");
+    overlay.style.display = "flex";
+    lockUIAfterTime0();
+
+    document.getElementById("timeout-in").onclick = () => {
+      if (submitted) return;
+      setAction("in");
+      hideTimeoutOverlay();
+      submitDecision();
+    };
+
+    document.getElementById("timeout-out").onclick = () => {
+      if (submitted) return;
+      setAction("out");
+      hideTimeoutOverlay();
+      submitDecision();
+    };
+  }
+
+  if (alive){
+    document.getElementById("btn-in").addEventListener("click", () => {
+      if (submitted || timeIsUp) return;
+      setAction("in");
+    });
+    document.getElementById("btn-out").addEventListener("click", () => {
+      if (submitted || timeIsUp) return;
+      setAction("out");
+    });
+  } else {
+    lockUIAfterTime0();
+  }
+
+  function secondsToMinutesAndSeconds(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return minutes + ":" + (remainingSeconds < 10 ? "0" : "") + remainingSeconds;
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    const timeEl = document.querySelector(".custom-time-left");
+    if (timeEl) timeEl.textContent = secondsToMinutesAndSeconds(timeLeft);
+
+    const interval = setInterval(function(){
+      if (timeLeft <= 0){
+        clearInterval(interval);
+        timeIsUp = true;
+
+        if (timeEl) timeEl.textContent = "0:00";
+        document.getElementById("progress-bar").style.width = "100%";
+
+        // DEAD: no modal, just submit
+        if (!alive) {
+          submitDecision();
+          return;
+        }
+
+        const chosen = getChosenValue();
+        if (chosen){
+          submitDecision();
+        } else {
+          showTimeoutModal();
+        }
+        return;
+      }
+
+      timeLeft--;
+      if (timeEl) timeEl.textContent = secondsToMinutesAndSeconds(timeLeft);
+      const percentage = ((timerDuration - timeLeft) / timerDuration) * 100;
+      document.getElementById("progress-bar").style.width = percentage + "%";
+    }, 1000);
+  });
+
+  // New variables to add
+  // start timer at page load
+  const t0 = performance.now();
+  let firstClickDone = false;
+
+  const rtField = document.getElementById('id_rt_first_click_ms');
+  const popupField = document.getElementById('id_used_popup');
+  const clickField = document.getElementById('id_click_count');
+
+  function recordFirstClick() {
+    if (firstClickDone) return;
+    firstClickDone = true;
+    if (rtField) rtField.value = Math.round(performance.now() - t0);
+  }
+
+  function countClick() {
+    if (!clickField) return;
+    clickField.value = Number(clickField.value || 0) + 1;
+  }
+
+  // Count decision changes (IN / OUT)
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.name === "action") {
+      recordFirstClick();
+      countClick();
+    }
+  });
+
+  // If a popup/help already exists and is clicked, record it
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.popup-trigger, #helpBtn, [data-popup]')) {
+      if (popupField) popupField.value = "True";
+    }
+  });
+
+
+</script>
+{% endblock %}

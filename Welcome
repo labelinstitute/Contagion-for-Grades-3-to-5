@@ -1,0 +1,7 @@
+{{ extends 'otree/Page.html' }}
+
+{{ block title }}Please wait{{ endblock }}
+
+{{ block content }}
+  <p>Please wait. The session will start shortly.</p>
+{{ endblock }}

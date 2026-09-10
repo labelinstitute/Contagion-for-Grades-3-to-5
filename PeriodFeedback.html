@@ -1,0 +1,455 @@
+{{ extends 'otree/Page.html' }}
+{{ load static }}
+
+{{ block content }}
+
+<style>
+  body, .otree-body, .container{ background:#ffffff !important; }
+
+  .wrap-2col{
+    width: 1060px;
+    max-width: calc(100vw - 32px);
+    margin: 12px auto 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 32px;
+    align-items: start;
+  }
+  @media (max-width: 980px){
+    .wrap-2col{ grid-template-columns: 1fr; gap: 18px; }
+  }
+
+  .left-card, .right-card{ background: transparent; box-shadow:none; border:none; padding:0; }
+  .net-wrap{ background: transparent; box-shadow:none; border:none; padding:0; }
+
+  svg{
+    width: 100%;
+    height: 300px;
+    display:block;
+    background: #ffffff;
+    border-radius: 0;
+  }
+
+  .link{ stroke: rgba(45,55,72,0.35); stroke-width: 2.5px; }
+
+  /* ==================== NETWORK VISUALIZATION ELEMENTS ==================== */
+  .node-circle{
+    stroke: rgba(45,55,72,0.9);
+    stroke-width: 3px;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.12));
+  }
+
+  .healthy { fill:#2ecc71; }
+  .infected{ fill:#3498db; }
+  .sick    { fill:#e74c3c; }
+
+  /* ✅ IN = LIGHT GREY (override health colors) */
+  .node-circle.dim{
+    fill:  #d9d9d9 !important;
+    stroke: rgba(45,55,72,0.9);
+    opacity: 1;
+    filter: none;
+  }
+
+  /* dead = neutral circle */
+  .deadNeutral{
+    fill: #ffffff;
+    stroke: #c0392b;
+    stroke-width: 4px;
+  }
+
+  /* cross image inside dead circle */
+  .dead-cross-img{
+    pointer-events: none;
+    opacity: 1;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
+  }
+
+  .node-label{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    fill: #ffffff;
+    pointer-events: none;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.25);
+  }
+
+  /* Risk label above node */
+  .risk-label{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: 900;
+    font-size: 12px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+  .risk-red{ fill:#c0392b; }
+  .risk-blue{ fill:#1f6feb; }
+
+  /* ==================== BELOW NETWORK (like screenshot) ==================== */
+  .below-stack{
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    align-items: center;
+  }
+
+  .decision-card{
+  width: 160px;
+  height: 160px;
+  border: 2px solid rgba(45,55,72,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: #cfe2ea;
+}
+
+  .decision-card .lbl{ font-weight:900; letter-spacing:0.3px; font-size:18px; }
+
+  .status-row{
+    display:flex;
+    align-items:center;
+    gap: 18px;
+  }
+  .status-row .face{
+    width: 96px;
+    text-align:center;
+    font-weight: 900;
+  }
+  .status-row .face img{
+    width:78px; height:78px; display:block; margin:0 auto 6px auto;
+  }
+  .status-row .text{
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .right-card{
+    display:flex;
+    flex-direction:column;
+    height: 100%;
+    justify-content: space-between;
+  }
+
+  .points-title{
+    font-weight: 900;
+    font-size: 18px;
+    letter-spacing: 0.3px;
+    margin-top: 60px;
+    text-align: right;
+  }
+
+  .risk-box{
+    background: white;
+    padding: 14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-bottom: 24px;
+  }
+  .risk-box img{ max-width: 100%; height: auto; display:block; }
+
+  /* ✅ PIE CHART CONTAINER - centers the pie */
+  .pgain-center{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 22px 0;
+  }
+
+  /* pie */
+  .pie-wrap{
+    display:inline-flex;
+    align-items:center;
+    gap: 12px;
+    white-space: nowrap;
+  }
+
+  .pie{
+    width: 85px;
+    height: 85px;
+    border-radius:50%;
+    background: conic-gradient(
+      #e76fb3 calc(var(--p) * 1%),
+      #e6e6e6 0
+    );
+    box-shadow: 0 0 0 2px #333 inset;
+    flex: 0 0 auto;
+    position: relative;
+  }
+
+    .pie-text{
+    font-size: 18px;     /* slightly smaller than 22 */
+    font-weight: 900;
+    color: #222;
+    min-width: 60px;
+    text-align: left;
+    flex: 0 0 auto;
+
+    /* ✅ move it to top-left of the pie area */
+    align-self: flex-start;
+    margin-left: 6px;
+    margin-top: -10px;
+  }
+
+
+  /* ✅ Labels - always visible */
+  .pie-label{
+    position: absolute;
+    top: 10px;
+    font-size: 14px;
+    font-weight: 900;
+    color: #000;
+    pointer-events: none;
+    text-shadow: none;
+    opacity: 1;
+  }
+
+  /* push labels further inside the pie */
+.pie-left{
+  left: 23px;   /* was 18px */
+  top: 23px;    /* move downward a bit */
+}
+
+.pie-right{
+  right: 23px;  /* was 18px */
+  top: 23px;
+}
+
+</style>
+
+<div class="wrap-2col">
+
+  <!-- LEFT COLUMN -->
+  <div class="left-card">
+
+    <div class="net-wrap">
+      <svg id="netSvg"
+           viewBox="0 0 {{ canvas_w }} {{ canvas_h }}"
+           preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+      {% if show_pie %}
+      <div class="pgain-center">
+        <div class="pie-wrap">
+
+          <div class="pie pie-has-label" style="--p: {{ p_gain }};">
+
+            {# ✅ show 0 only if NOT 100% #}
+            {% if p_gain < 100 %}
+              <span class="pie-label pie-left">0</span>
+            {% endif %}
+
+            {# ✅ show +1 only if NOT 0% #}
+            {% if p_gain > 0 %}
+              <span class="pie-label pie-right">+1</span>
+            {% endif %}
+
+          </div>
+
+          {# ✅ percent text: top-left, smaller #}
+          <div class="pie-text">{{ p_gain }}%</div>
+
+        </div>
+      </div>
+    {% endif %}
+
+
+    <div class="below-stack">
+
+      <!-- Decision made (image) -->
+      <div class="decision-card">
+        {% if my_action == "in" %}
+          <img src="{% static 'house.png' %}" alt="IN">
+        {% elif my_action == "out" %}
+          <img src="{% static 'party.png' %}" alt="OUT">
+        {% else %}
+          <div class="lbl">NO CHOICE</div>
+        {% endif %}
+      </div>
+
+      <!-- Health emoji + germ change + new germ count -->
+      <div class="status-row">
+        <div class="face">
+          {% if not my_alive_now %}
+            <img src="{% static 'cross.png' %}" alt="DEAD">
+            YOU
+          {% else %}
+            {% if my_germ_new == 0 %}
+              <img src="{% static 'health_green.png' %}" alt="Healthy">
+            {% else %}
+              {% if my_risk == "blue" %}
+                <img src="{% static 'health_blue.png' %}" alt="Infected">
+              {% else %}
+                <img src="{% static 'health_red.png' %}" alt="Sick">
+              {% endif %}
+            {% endif %}
+            YOU
+          {% endif %}
+        </div>
+
+        <div class="text">
+          <div><b>Germ change:</b>
+            {% if germ_change > 0 %}+{{ germ_change }}{% else %}{{ germ_change }}{% endif %}
+          </div>
+          <div><b>New germ count:</b> {{ my_germ_new }}</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-card">
+    <div class="points-title">Total points = {{ block_points }}</div>
+
+    <div class="risk-box">
+      {% if my_risk == "red" %}
+        <img src="{% static 'risk.png' %}" alt="RISK">
+      {% else %}
+        <img src="{% static 'norisk.png' %}" alt="NO RISK">
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- ✅ Centered Next button -->
+<div style="text-align:center; margin-top: 18px;">
+    {{ next_button }}
+</div>
+
+<script src="{% static 'global/d3.v7.min.js' %}"></script>
+<script>
+  const svg = d3.select("#netSvg");
+  const DEAD_ICON = "{% static 'cross.png' %}";
+
+  // ✅ We ignore CSV positions here and build a STAR layout:
+  // YOU centered, neighbors evenly around (like your screenshot).
+
+  const states = {{ states|json }};
+  const dim = {{ dim|json }};
+  const YOU_ID = "{{ player.id_in_group }}";
+
+  // ✅ IMPORTANT: your Python must provide my_neighbors in vars_for_template:
+  // my_neighbors=json.loads(player.neighbors_json or "[]")
+  const neighborsRaw = {{ my_neighbors|json }}; // list of neighbor ids as strings
+  const neighborIDs = (neighborsRaw || []).map(x => String(x));
+
+  const vb = svg.attr("viewBox").split(" ").map(Number);
+  const W = vb[2], H = vb[3];
+  const CX = W / 2, CY = H / 2;
+
+  // Layout params
+  const R = Math.min(W, H) * 0.28;   // ring radius
+  const positions = {};
+  positions[String(YOU_ID)] = { x: CX, y: CY };
+
+  neighborIDs.forEach((nid, i) => {
+    const ang = (-Math.PI / 2) + (2 * Math.PI * i / Math.max(1, neighborIDs.length));
+    positions[nid] = {
+      x: CX + R * Math.cos(ang),
+      y: CY + R * Math.sin(ang),
+    };
+  });
+
+  // Star edges: YOU <-> each neighbor
+  const edges = neighborIDs.map(nid => ({ a: String(YOU_ID), b: String(nid) }));
+
+  function healthFill(health){
+    if (health === "infected") return "#3498db";
+    if (health === "sick")     return "#e74c3c";
+    return "#2ecc71";
+  }
+
+  function nodeIsDead(st){
+    return (st.health === "dead") || (st.alive === false);
+  }
+
+  // Build nodes: YOU + neighbors only
+  const egoIDs = [String(YOU_ID), ...neighborIDs];
+  const nodes = egoIDs
+    .filter(id => states[id] !== undefined)
+    .map(id => {
+      const st = states[id];
+      const pos = positions[id];
+      return {
+        id,
+        x: pos.x,
+        y: pos.y,
+        health: st.health,
+        risk: (st.risk_type || "").toLowerCase(),
+        dead: nodeIsDead(st),
+        dim: !!dim[id],               // dim keys are node_id strings in your dict
+        isYou: (id === String(YOU_ID))
+      };
+    });
+
+  // Links
+  svg.selectAll(".link")
+    .data(edges)
+    .enter()
+    .append("line")
+    .attr("class", "link")
+    .attr("x1", d => positions[String(d.a)].x)
+    .attr("y1", d => positions[String(d.a)].y)
+    .attr("x2", d => positions[String(d.b)].x)
+    .attr("y2", d => positions[String(d.b)].y);
+
+  const youR = 40;
+  const nR = 28;
+
+  // Circles
+  svg.selectAll(".node-circle-draw")
+    .data(nodes)
+    .enter()
+    .append("circle")
+    .attr("class", d => {
+      if (d.dead) return "node-circle deadNeutral";
+      let cls = "node-circle";
+      if (d.dim) cls += " dim";
+      return cls;
+    })
+    .attr("r", d => d.isYou ? youR : nR)
+    .attr("cx", d => d.x)
+    .attr("cy", d => d.y)
+    .attr("fill", d => {
+      if (d.dead) return "#ffffff";
+      if (d.dim)  return "#2f2f2f";
+      return healthFill(d.health);
+    });
+
+  // Labels
+  svg.selectAll(".node-label-draw")
+    .data(nodes.filter(d => !d.dead))
+    .enter()
+    .append("text")
+    .attr("class", "node-label")
+    .attr("x", d => d.x)
+    .attr("y", d => d.y)
+    .text(d => d.isYou ? "YOU" : "");
+
+
+  // Dead cross overlays
+  const CROSS_SIZE = 30;
+  const YOU_CROSS_SIZE = 36;
+
+  svg.selectAll(".dead-cross-img")
+    .data(nodes.filter(n => n.dead))
+    .enter()
+    .append("image")
+    .attr("class", "dead-cross-img")
+    .attr("href", DEAD_ICON)
+    .attr("width", d => d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)
+    .attr("height", d => d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)
+    .attr("x", d => d.x - (d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)/2)
+    .attr("y", d => d.y - (d.isYou ? YOU_CROSS_SIZE : CROSS_SIZE)/2);
+
+</script>
+
+
+{{ endblock }}
