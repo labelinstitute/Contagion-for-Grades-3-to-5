@@ -7,11 +7,7 @@ The experiment studies decision-making in environments involving contagion risk 
 
 ## Experiment Versions
 
-This repository contains two versions of the experiment:
-
-- **Grade 3–5 version** – adapted for students in grades 3 to 5.
-- **K–12 version** – includes the main contagion experiment and additional cognitive and behavioral tasks.
-
+This repository contains the version of the experiment for Grade 3–5 adapted for students in grades 3 to 5
 ## Technology
 
 - Python
